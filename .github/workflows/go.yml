@@ -1,0 +1,58 @@
+name: Go
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  # Label of the container job
+  container-job:
+    # Containers must run in Linux based operating systems
+    runs-on: ubuntu-latest
+    # Docker Hub image that `container-job` executes in
+    container: golang
+
+    # Service containers to run with `container-job`
+    services:
+      # Label used to access the service container
+      rabbitmq:
+        # Docker Hub image for RabbitMQ
+        image: rabbitmq:3-management
+        # Set health checks to wait until RabbitMQ has started
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        # Expose standard RabbitMQ ports
+        ports:
+          - 5672:5672  # AMQP protocol
+          - 15672:15672  # Management UI
+
+    steps:
+      # Downloads a copy of the code in your repository before running CI tests
+      - name: Check out repository code
+        uses: actions/checkout@v3
+        
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: 1.23
+
+      - name: Setup golangci-lint
+        uses: golangci/golangci-lint-action@v6.1.0
+        with:
+          version: v1.61.0
+          args: --timeout 10m -v -c .golangci.yml
+
+      - name: Test
+        run: |
+          curl -s https://raw.githubusercontent.com/thalesfsp/configurer/main/resources/install.sh | sh
+          make test coverage
+          
+      - name: Integration test
+        run: |
+          curl -s https://raw.githubusercontent.com/thalesfsp/configurer/main/resources/install.sh | sh
+          make test-integration coverage
