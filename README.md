@@ -2,7 +2,7 @@
 
 A highly flexible and extensible queue interface implementation in Go that provides a unified way to interact with different queue backends.
 
-This package implements a generic queue interface that abstracts away the complexities of working with different queue systems. It provides a consistent API for basic CRUD operations while supporting various queue backends like Redis and others. The implementation includes robust error handling, metrics collection, and APM tracing capabilities.
+This package implements a generic queue interface that abstracts away the complexities of working with different queue systems. It provides a consistent API for common and usual operations while supporting various queue backends like RabbitMQ, AWS SQS, Kafka and others. The implementation includes robust error handling, metrics collection, and APM tracing capabilities.
 
 ## Features
 
@@ -13,13 +13,13 @@ This package implements a generic queue interface that abstracts away the comple
 - Extensible Architecture: Easy to implement new queue backends
 - Pre/Post Operation Hooks: Customizable hooks for operation lifecycle management
 - Type-Safe Operations: Generic type support for type-safe data handling
-- Redis Implementation: Full featured Redis queue implementation included
+- RabbitMQ Implementation: Full featured RabbitMQ queue implementation included
 - Robust Error Handling: Comprehensive error handling with customer error types
 - Logging Support: Integrated logging system with different log levels
 
 ## Install
 
-`go get github.com/thalesfsp/queue/queue`
+`go get github.com/thalesfsp/queue`
 
 ## Contributing
 
