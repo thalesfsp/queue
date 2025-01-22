@@ -12,8 +12,6 @@ import (
 //////
 
 // Mock is a struct which satisfies the queue.IQueue interface.
-//
-//nolint:dupl
 type Mock[P, S any] struct {
 	//////
 	// Allows to set the returned value of each method.

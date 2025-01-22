@@ -3,9 +3,8 @@ package rabbitmq
 import (
 	"time"
 
-	"github.com/thalesfsp/queue/queue"
-
 	amqp "github.com/rabbitmq/amqp091-go"
+	"github.com/thalesfsp/queue/queue"
 )
 
 //////
@@ -22,20 +21,20 @@ type SubscribeParams struct {
 
 	// AutoAck acknowledges deliveries to this consumer prior to writing the
 	// delivery to the network.
-	AutoAck bool `json:"autoAck" default:"false"`
+	AutoAck bool `default:"false" json:"autoAck"`
 
 	// Consumer is a unique string that identifies the consumer.
 	Consumer string `json:"consumer"`
 
 	// Exclusive ensures that this is the sole consumer from this queue.
-	Exclusive bool `json:"exclusive" default:"false"`
+	Exclusive bool `default:"false" json:"exclusive"`
 
 	// NoLocal is not supported by RabbitMQ.
-	NoLocal bool `json:"noLocal" default:"false"`
+	NoLocal bool `default:"false" json:"noLocal"`
 
 	// NoWait does not wait for the server to confirm the request and immediately
 	// begins deliveries.
-	NoWait bool `json:"noWait" default:"false"`
+	NoWait bool `default:"false" json:"noWait"`
 }
 
 // NewSubscribeParams creates a new SubscribeParams.
@@ -57,7 +56,7 @@ type PublishParams struct {
 	queue.PublishParams
 
 	// ContentType specifies the content type of the message.
-	ContentType string `json:"contentType" default:"application/json"`
+	ContentType string `default:"application/json" json:"contentType"`
 
 	// DeliveryMode. Transient means higher throughput but messages will not be
 	// restored on broker restart. The delivery mode of publishings is unrelated
@@ -70,16 +69,16 @@ type PublishParams struct {
 	//
 	// - Transient  uint8 = 1
 	// - Persistent uint8 = 2
-	DeliveryMode uint8 `json:"deliveryMode" default:"2"`
+	DeliveryMode uint8 `default:"2" json:"deliveryMode"`
 
 	// Exchange specifies the exchange to publish to.
 	Exchange string `json:"exchange"`
 
 	// Immediate delivers the message to the first available consumer immediately.
-	Immediate bool `json:"immediate" default:"false"`
+	Immediate bool `default:"false" json:"immediate"`
 
 	// Mandatory ensures the message is delivered to at least one consumer.
-	Mandatory bool `json:"mandatory" default:"false"`
+	Mandatory bool `default:"false" json:"mandatory"`
 }
 
 // NewPublishParams returns a default PublishParams.

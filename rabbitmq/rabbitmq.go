@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/thalesfsp/customerror"
 	"github.com/thalesfsp/queue/internal/customapm"
 	"github.com/thalesfsp/queue/internal/logging"
@@ -13,8 +14,6 @@ import (
 	"github.com/thalesfsp/sypl/fields"
 	"github.com/thalesfsp/sypl/level"
 	"github.com/thalesfsp/validation"
-
-	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 //////
@@ -167,16 +166,25 @@ func (m *RabbitMQ) Subscribe(ctx context.Context, queueName string, cb queue.Cal
 	go func() {
 		for d := range msgs {
 			ctxTimeout, cancel := context.WithTimeout(ctx, prm.ContextTimeout)
-			defer cancel()
 
 			if err := cb(ctxTimeout, &queue.Message{
 				Body: d.Body,
 			}); err != nil {
+				cancel()
+
 				// Doesn't acknowledge the message.
-				d.Nack(false, true)
+				if err := d.Nack(false, true); err != nil {
+					// Observability.
+					_ = customapm.TraceError(
+						ctx,
+						customerror.NewFailedToError(queue.OperationReceived.String(), customerror.WithError(err)),
+						m.GetLogger(),
+						m.GetCounterReceivedFailed(),
+					)
+				}
 
 				// Observability.
-				customapm.TraceError(
+				_ = customapm.TraceError(
 					ctx,
 					customerror.NewFailedToError(queue.OperationReceived.String(), customerror.WithError(err)),
 					m.GetLogger(),
@@ -191,7 +199,17 @@ func (m *RabbitMQ) Subscribe(ctx context.Context, queueName string, cb queue.Cal
 			m.GetCounterReceived().Add(1)
 
 			// Acknowledges the message.
-			d.Ack(false)
+			if err := d.Ack(false); err != nil {
+				// Observability.
+				_ = customapm.TraceError(
+					ctx,
+					customerror.NewFailedToError(queue.OperationReceived.String(), customerror.WithError(err)),
+					m.GetLogger(),
+					m.GetCounterReceivedFailed(),
+				)
+			}
+
+			cancel()
 		}
 	}()
 

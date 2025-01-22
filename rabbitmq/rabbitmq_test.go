@@ -121,7 +121,7 @@ func TestNew(t *testing.T) {
 			//////
 
 			// Wait for all 3 messages to be processed
-			for i := 0; i < 3; i++ {
+			for i := range 3 {
 				select {
 				case <-messageReceived:
 					// Message was processed successfully
