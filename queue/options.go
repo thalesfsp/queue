@@ -23,21 +23,21 @@ var (
 
 // HookFunc specifies the function that will be called before and after the
 // operation.
-type HookFunc[P, S any] func(ctx context.Context, q IQueue[P, S], queueName string, m *Message) error
+type HookFunc func(ctx context.Context, q IQueue, queueName string, m *Message) error
 
 // OptionsFunc allows to set options.
-type OptionsFunc[P, S any] func(o *Options[P, S]) error
+type OptionsFunc func(o *Options) error
 
 // Options for operations.
-type Options[P, S any] struct {
+type Options struct {
 	// QueueName name.
 	QueueName string `json:"queueName"`
 
 	// PreHookFunc is the function which runs before the operation.
-	PreHookFunc HookFunc[P, S] `json:"-"`
+	PreHookFunc HookFunc `json:"-"`
 
 	// PostHookFunc is the function which runs after the operation.
-	PostHookFunc HookFunc[P, S] `json:"-"`
+	PostHookFunc HookFunc `json:"-"`
 }
 
 //////
@@ -45,8 +45,8 @@ type Options[P, S any] struct {
 //////
 
 // WithPreHook set the pre-hook function.
-func WithPreHook[P, S any](fn HookFunc[P, S]) OptionsFunc[P, S] {
-	return func(o *Options[P, S]) error {
+func WithPreHook(fn HookFunc) OptionsFunc {
+	return func(o *Options) error {
 		if fn == nil {
 			return ErrRequiredPreHook
 		}
@@ -58,8 +58,8 @@ func WithPreHook[P, S any](fn HookFunc[P, S]) OptionsFunc[P, S] {
 }
 
 // WithPostHook set the post-hook function.
-func WithPostHook[P, S any](fn HookFunc[P, S]) OptionsFunc[P, S] {
-	return func(o *Options[P, S]) error {
+func WithPostHook(fn HookFunc) OptionsFunc {
+	return func(o *Options) error {
 		if fn == nil {
 			return ErrRequiredPostHook
 		}
@@ -71,8 +71,8 @@ func WithPostHook[P, S any](fn HookFunc[P, S]) OptionsFunc[P, S] {
 }
 
 // WithQueueName sets the queue name.
-func WithQueueName[P, S any](queueName string) OptionsFunc[P, S] {
-	return func(o *Options[P, S]) error {
+func WithQueueName(queueName string) OptionsFunc {
+	return func(o *Options) error {
 		o.QueueName = queueName
 
 		return nil
@@ -80,8 +80,8 @@ func WithQueueName[P, S any](queueName string) OptionsFunc[P, S] {
 }
 
 // NewOptions creates Options.
-func NewOptions[P, S any]() (*Options[P, S], error) {
-	o := &Options[P, S]{}
+func NewOptions() (*Options, error) {
+	o := &Options{}
 
 	if err := validation.Validate(o); err != nil {
 		return nil, err

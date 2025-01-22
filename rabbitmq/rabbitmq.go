@@ -24,7 +24,7 @@ import (
 const Name = "rabbitmq"
 
 // Singleton.
-var singleton queue.IQueue[PublishParams, SubscribeParams]
+var singleton queue.IQueue
 
 // Config is the RabbitMQ configuration.
 type Config struct {
@@ -66,7 +66,9 @@ type RabbitMQ struct {
 //////
 
 // Subscribe to channel.
-func (m *RabbitMQ) Subscribe(ctx context.Context, queueName string, cb queue.CallbackFunc, prm *SubscribeParams, options ...queue.OptionsFunc[PublishParams, SubscribeParams]) error {
+//
+// NOTE: Use `prm.Any` to set implementation-specific parameters.
+func (m *RabbitMQ) Subscribe(ctx context.Context, queueName string, cb queue.CallbackFunc, prm *queue.SubscribeParams, options ...queue.OptionsFunc) error {
 	//////
 	// Validation.
 	//////
@@ -105,7 +107,7 @@ func (m *RabbitMQ) Subscribe(ctx context.Context, queueName string, cb queue.Cal
 	// Options initialization.
 	//////
 
-	o, err := queue.NewOptions[PublishParams, SubscribeParams]()
+	o, err := queue.NewOptions()
 	if err != nil {
 		return customapm.TraceError(ctx, err, m.GetLogger(), m.GetCounterSubscribedFailed())
 	}
@@ -125,8 +127,29 @@ func (m *RabbitMQ) Subscribe(ctx context.Context, queueName string, cb queue.Cal
 	// Params handling.
 	//////
 
+	// Handle cases where prm is not set.
 	if prm == nil {
-		prm = NewSubscribeParams()
+		prm = &queue.SubscribeParams{
+			Any: NewDefaultSubscribeParams(),
+		}
+	}
+
+	// Handle cases where Any isn't set.
+	if prm.Any == nil {
+		prm.Any = NewDefaultSubscribeParams()
+	}
+
+	// At this point, prm.Any is something. If `Any` was empty, for sure it's
+	// a `PublishParams`, otherwise tries to cast to it, if fails, returns an
+	// error.
+	castedParams, ok := prm.Any.(*SubscribeParams)
+	if !ok {
+		return customapm.TraceError(
+			ctx,
+			customerror.NewFailedToError("cast to PublishParams"),
+			m.GetLogger(),
+			m.GetCounterPublishedFailed(),
+		)
 	}
 
 	//////
@@ -135,11 +158,11 @@ func (m *RabbitMQ) Subscribe(ctx context.Context, queueName string, cb queue.Cal
 
 	if _, err := m.Client.QueueDeclare(
 		queueName,
-		prm.Durable,
-		prm.AutoDelete,
-		prm.Exclusive,
-		prm.NoWait,
-		prm.Args,
+		castedParams.Durable,
+		castedParams.AutoDelete,
+		castedParams.Exclusive,
+		castedParams.NoWait,
+		castedParams.Args,
 	); err != nil {
 		return customapm.TraceError(
 			ctx,
@@ -154,12 +177,12 @@ func (m *RabbitMQ) Subscribe(ctx context.Context, queueName string, cb queue.Cal
 
 	msgs, err := m.Client.Consume(
 		queueName,
-		prm.Consumer,
-		prm.AutoAck,
-		prm.Exclusive,
-		prm.NoLocal,
-		prm.NoWait,
-		prm.Args,
+		castedParams.Consumer,
+		castedParams.AutoAck,
+		castedParams.Exclusive,
+		castedParams.NoLocal,
+		castedParams.NoWait,
+		castedParams.Args,
 	)
 	if err != nil {
 		return customapm.TraceError(
@@ -237,7 +260,9 @@ func (m *RabbitMQ) Subscribe(ctx context.Context, queueName string, cb queue.Cal
 }
 
 // Publish data.
-func (m *RabbitMQ) Publish(ctx context.Context, queueName string, msg *queue.Message, prm *PublishParams, options ...queue.OptionsFunc[PublishParams, SubscribeParams]) error {
+//
+// NOTE: Use `prm.Any` to set implementation-specific parameters.
+func (m *RabbitMQ) Publish(ctx context.Context, queueName string, msg *queue.Message, prm *queue.PublishParams, options ...queue.OptionsFunc) error {
 	//////
 	// Validation.
 	//////
@@ -276,7 +301,7 @@ func (m *RabbitMQ) Publish(ctx context.Context, queueName string, msg *queue.Mes
 	// Options initialization.
 	//////
 
-	o, err := queue.NewOptions[PublishParams, SubscribeParams]()
+	o, err := queue.NewOptions()
 	if err != nil {
 		return customapm.TraceError(ctx, err, m.GetLogger(), m.GetCounterPublishedFailed())
 	}
@@ -296,8 +321,29 @@ func (m *RabbitMQ) Publish(ctx context.Context, queueName string, msg *queue.Mes
 	// Params handling.
 	//////
 
+	// Handle cases where prm is not set.
 	if prm == nil {
-		prm = NewPublishParams()
+		prm = &queue.PublishParams{
+			Any: NewDefaultPublishParams(),
+		}
+	}
+
+	// Handle cases where Any isn't set.
+	if prm.Any == nil {
+		prm.Any = NewDefaultPublishParams()
+	}
+
+	// At this point, prm.Any is something. If `Any` was empty, for sure it's
+	// a `PublishParams`, otherwise tries to cast to it, if fails, returns an
+	// error.
+	castedParams, ok := prm.Any.(*PublishParams)
+	if !ok {
+		return customapm.TraceError(
+			ctx,
+			customerror.NewFailedToError("cast to PublishParams"),
+			m.GetLogger(),
+			m.GetCounterPublishedFailed(),
+		)
 	}
 
 	//////
@@ -311,19 +357,19 @@ func (m *RabbitMQ) Publish(ctx context.Context, queueName string, msg *queue.Mes
 	}
 
 	// Register confirmation channel if provided and confirms are enabled
-	if m.Config.EnableConfirms && prm.Confirm && prm.ConfirmCh != nil {
-		m.Client.NotifyPublish(prm.ConfirmCh)
+	if m.Config.EnableConfirms && castedParams.Confirm && castedParams.ConfirmCh != nil {
+		m.Client.NotifyPublish(castedParams.ConfirmCh)
 	}
 
 	// Actually publish the data.
 	if err := m.Client.PublishWithContext(ctx,
-		prm.Exchange,
+		castedParams.Exchange,
 		queueName,
-		prm.Mandatory,
-		prm.Immediate,
+		castedParams.Mandatory,
+		castedParams.Immediate,
 		amqp.Publishing{
-			DeliveryMode: prm.DeliveryMode,
-			ContentType:  prm.ContentType,
+			DeliveryMode: castedParams.DeliveryMode,
+			ContentType:  castedParams.ContentType,
 			Body:         msg.Body,
 		}); err != nil {
 		return customapm.TraceError(
@@ -372,7 +418,7 @@ func (m *RabbitMQ) GetClient() any {
 // New creates a new RabbitMQ Queue.
 func New(ctx context.Context, url string, cfg *Config) (*RabbitMQ, error) {
 	// Enforces IQueue interface implementation.
-	var _ queue.IQueue[PublishParams, SubscribeParams] = (*RabbitMQ)(nil)
+	var _ queue.IQueue = (*RabbitMQ)(nil)
 
 	iQ, err := queue.New(ctx, Name)
 	if err != nil {
@@ -447,7 +493,7 @@ func New(ctx context.Context, url string, cfg *Config) (*RabbitMQ, error) {
 //////
 
 // Get returns a setup Queue, or set it up.
-func Get() queue.IQueue[PublishParams, SubscribeParams] {
+func Get() queue.IQueue {
 	if singleton == nil {
 		panic(fmt.Sprintf("%s %s not %s", Name, queue.Type, status.Initialized))
 	}
@@ -456,6 +502,6 @@ func Get() queue.IQueue[PublishParams, SubscribeParams] {
 }
 
 // Set the Queue, primarily used for testing.
-func Set(s queue.IQueue[PublishParams, SubscribeParams]) {
+func Set(s queue.IQueue) {
 	singleton = s
 }

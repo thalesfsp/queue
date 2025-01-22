@@ -16,12 +16,16 @@ import (
 type CallbackFunc func(ctx context.Context, msg *Message) error
 
 // IQueue defines the queue abstraction layer - interface.
-type IQueue[P, S any] interface {
+type IQueue interface {
 	// Publish data.
-	Publish(ctx context.Context, queueName string, msg *Message, prm *P, options ...OptionsFunc[P, S]) error
+	//
+	// NOTE: Use `prm.Any` to set implementation-specific parameters.
+	Publish(ctx context.Context, queueName string, msg *Message, prm *PublishParams, options ...OptionsFunc) error
 
 	// Subscribe to channel.
-	Subscribe(ctx context.Context, queueName string, cb CallbackFunc, prm *S, options ...OptionsFunc[P, S]) error
+	//
+	// NOTE: Use `prm.Any` to set implementation-specific parameters.
+	Subscribe(ctx context.Context, queueName string, cb CallbackFunc, prm *SubscribeParams, options ...OptionsFunc) error
 
 	//////
 	// Meta.
@@ -68,11 +72,8 @@ type IQueue[P, S any] interface {
 //////
 
 // Publish data.
-func Publish[P any, S any](ctx context.Context, s IQueue[P, S], queueName string, msg *Message, prm *P, options ...OptionsFunc[P, S]) error {
+//
+// NOTE: Use `prm.Any` to set implementation-specific parameters.
+func Publish(ctx context.Context, s IQueue, queueName string, msg *Message, prm *PublishParams, options ...OptionsFunc) error {
 	return s.Publish(ctx, queueName, msg, prm, options...)
-}
-
-// Subscribe data.
-func Subscribe[P any, S any](ctx context.Context, s IQueue[P, S], queueName string, cb CallbackFunc, prm *S, options ...OptionsFunc[P, S]) error {
-	return Subscribe(ctx, s, queueName, cb, prm, options...)
 }

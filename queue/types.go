@@ -12,6 +12,9 @@ import (
 
 // SubscribeParams defines the parameters for subscribing to a queue.
 type SubscribeParams struct {
+	// Any is a placeholder for Queue-specific implementation specific fields.
+	Any any `json:"-"`
+
 	// GroupID identifies a group of consumers that work as one unit.
 	// Example: Consumer Group in Kafka/SQS, Consumer Tag prefix in RabbitMQ, etc.
 	GroupID string
@@ -46,6 +49,9 @@ type SubscribeParams struct {
 
 // PublishParams defines the parameters for publishing a message to a queue.
 type PublishParams struct {
+	// Any is a placeholder for Queue-specific implementation specific fields.
+	Any any `json:"-"`
+
 	// Tags attach categorization metadata to the message.
 	// Example: Message Tags in SQS, Message Properties in RabbitMQ, Record Headers in Kafka, etc.
 	Tags []string

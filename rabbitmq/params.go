@@ -35,7 +35,8 @@ type SubscribeParams struct {
 	// Exclusive ensures that this is the sole consumer from this queue.
 	Exclusive bool `default:"false" json:"exclusive"`
 
-	// NoLocal is not supported by RabbitMQ.
+	// NoLocal means the server will not send messages to the connection that
+	// published them.
 	NoLocal bool `default:"false" json:"noLocal"`
 
 	// NoWait does not wait for the server to confirm the request and immediately
@@ -43,8 +44,8 @@ type SubscribeParams struct {
 	NoWait bool `default:"false" json:"noWait"`
 }
 
-// NewSubscribeParams creates a new SubscribeParams.
-func NewSubscribeParams() *SubscribeParams {
+// NewDefaultSubscribeParams creates a new SubscribeParams.
+func NewDefaultSubscribeParams() *SubscribeParams {
 	return &SubscribeParams{
 		SubscribeParams: queue.SubscribeParams{
 			ContextTimeout: 5 * time.Second,
@@ -56,6 +57,14 @@ func NewSubscribeParams() *SubscribeParams {
 		Exclusive:  false,
 		NoLocal:    false,
 		NoWait:     false,
+	}
+}
+
+// NewSubscribeParams return a common SubscribeParams with the `Any` field
+// already set to the specific implementation default parameters.
+func NewSubscribeParams() *queue.SubscribeParams {
+	return &queue.SubscribeParams{
+		Any: NewDefaultSubscribeParams(),
 	}
 }
 
@@ -100,8 +109,8 @@ type PublishParams struct {
 	Mandatory bool `default:"false" json:"mandatory"`
 }
 
-// NewPublishParams returns a default PublishParams.
-func NewPublishParams() *PublishParams {
+// NewDefaultPublishParams returns a default PublishParams.
+func NewDefaultPublishParams() *PublishParams {
 	return &PublishParams{
 		Confirm:      false,
 		ContentType:  "application/json",
@@ -109,5 +118,13 @@ func NewPublishParams() *PublishParams {
 		Exchange:     "",
 		Immediate:    false,
 		Mandatory:    false,
+	}
+}
+
+// NewPublishParams return a common PublishParams with the `Any` field already
+// set to the specific implementation default parameters.
+func NewPublishParams() *queue.PublishParams {
+	return &queue.PublishParams{
+		Any: NewDefaultPublishParams(),
 	}
 }

@@ -5,8 +5,8 @@ import (
 	"testing"
 )
 
-var m1 = &Mock[PublishParams, SubscribeParams]{
-	MockPublish: func(ctx context.Context, queueName string, msg *Message, prm *PublishParams, options ...OptionsFunc[PublishParams, SubscribeParams]) error {
+var m1 = &Mock{
+	MockPublish: func(ctx context.Context, queueName string, msg *Message, prm *PublishParams, options ...OptionsFunc) error {
 		return nil
 	},
 
@@ -15,8 +15,8 @@ var m1 = &Mock[PublishParams, SubscribeParams]{
 	},
 }
 
-var m2 = &Mock[PublishParams, SubscribeParams]{
-	MockPublish: func(ctx context.Context, queueName string, msg *Message, prm *PublishParams, options ...OptionsFunc[PublishParams, SubscribeParams]) error {
+var m2 = &Mock{
+	MockPublish: func(ctx context.Context, queueName string, msg *Message, prm *PublishParams, options ...OptionsFunc) error {
 		return nil
 	},
 
@@ -39,7 +39,7 @@ func TestPublishToMany(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
 
-			m := NewMap[PublishParams, SubscribeParams]()
+			m := make(Map)
 			m["m1"] = m1
 			m["m2"] = m2
 

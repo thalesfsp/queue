@@ -1,15 +1,3 @@
-// "amqp://guest:guest@localhost:5672/"
-// Config is the RabbitMQ configuration.
-// "task_queue", // name
-// true,         // durable
-// false,        // delete when unused
-// false,        // exclusive
-// false,        // no-wait
-// nil,          // arguments
-// 1,     // prefetch count
-// 0,     // prefetch size
-// false, // global
-
 package rabbitmq
 
 import (
@@ -123,7 +111,7 @@ func TestNew(t *testing.T) {
 				Name: "test1",
 			}), NewPublishParams(),
 				queue.WithPreHook(
-					func(_ context.Context, q queue.IQueue[PublishParams, SubscribeParams], queueName string, m *queue.Message) error {
+					func(_ context.Context, q queue.IQueue, queueName string, m *queue.Message) error {
 						assert.NotNil(t, q)
 						assert.NotNil(t, m)
 						assert.NotNil(t, m.Body)
@@ -134,7 +122,7 @@ func TestNew(t *testing.T) {
 					},
 				),
 				queue.WithPostHook(
-					func(_ context.Context, q queue.IQueue[PublishParams, SubscribeParams], queueName string, m *queue.Message) error {
+					func(_ context.Context, q queue.IQueue, queueName string, m *queue.Message) error {
 						assert.NotNil(t, q)
 						assert.NotNil(t, m)
 						assert.NotNil(t, m.Body)
@@ -154,8 +142,12 @@ func TestNew(t *testing.T) {
 			confirmCh := make(chan amqp.Confirmation, 1)
 
 			p2PRM := NewPublishParams()
-			p2PRM.Confirm = true        // Enable confirmation for this message.
-			p2PRM.ConfirmCh = confirmCh // Channel to receive the confirmation.
+
+			dPP := NewDefaultPublishParams()
+			dPP.Confirm = true        // Enable confirmation for this message.
+			dPP.ConfirmCh = confirmCh // Channel to receive the confirmation.
+
+			p2PRM.Any = dPP
 
 			assert.NoError(t, q.Publish(ctx, queueName, queue.NewMustMessageFromStruct(&shared.TestDataS{
 				Name: "test2",
