@@ -66,7 +66,13 @@ func TestNew(t *testing.T) {
 			defer cancel()
 
 			q, err := New(ctx, host, queueName, nil)
-			assert.NoError(t, err)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if q == nil {
+				t.Fatal("q is nil")
+			}
 
 			//////
 			// Should be able to subscribe.

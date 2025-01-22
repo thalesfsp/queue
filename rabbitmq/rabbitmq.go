@@ -420,6 +420,11 @@ func New(ctx context.Context, url string, queueName string, cfg *Config) (*Rabbi
 		return nil, customerror.NewFailedToError("setup QoS", customerror.WithError(err))
 	}
 
+	// Call ping to RabbitMQ.
+	if err := ch.Confirm(false); err != nil {
+		return nil, customerror.NewFailedToError("ping", customerror.WithError(err))
+	}
+
 	queue := &RabbitMQ{
 		Queue: iQ,
 
