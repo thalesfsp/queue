@@ -28,27 +28,19 @@ var singleton queue.IQueue[PublishParams, SubscribeParams]
 
 // Config is the RabbitMQ configuration.
 type Config struct {
-	Args          amqp.Table
-	AutoDelete    bool
-	Durable       bool
-	Exclusive     bool
-	Global        bool
-	NoWait        bool
-	PrefetchCount int
-	PrefetchSize  int
+	EnableConfirms bool `json:"enableConfirms"`
+	Global         bool `json:"global"`
+	PrefetchCount  int  `json:"prefetchCount"`
+	PrefetchSize   int  `json:"prefetchSize"`
 }
 
 // NewConfig returns a default RabbitMQ configuration.
 func NewConfig() *Config {
 	return &Config{
-		Args:          nil,
-		AutoDelete:    false,
-		Durable:       true,
-		Exclusive:     false,
-		Global:        false,
-		NoWait:        false,
-		PrefetchCount: 1,
-		PrefetchSize:  0,
+		EnableConfirms: false,
+		Global:         false,
+		PrefetchCount:  1,
+		PrefetchSize:   0,
 	}
 }
 
@@ -63,8 +55,6 @@ type RabbitMQ struct {
 	Config *Config `json:"-" validate:"required"`
 
 	amqpConn *amqp.Connection
-
-	amqpQueue amqp.Queue
 }
 
 //////
@@ -127,11 +117,9 @@ func (m *RabbitMQ) Subscribe(ctx context.Context, queueName string, cb queue.Cal
 		}
 	}
 
-	// Queue name was defined when the `New` was called. RabbitMQ doesn't allow
-	// to change that later.
-	o.QueueName = m.amqpQueue.Name
-
-	queueName = o.QueueName
+	if o.QueueName != "" {
+		queueName = o.QueueName
+	}
 
 	//////
 	// Params handling.
@@ -144,6 +132,25 @@ func (m *RabbitMQ) Subscribe(ctx context.Context, queueName string, cb queue.Cal
 	//////
 	// Subscribing.
 	//////
+
+	if _, err := m.Client.QueueDeclare(
+		queueName,
+		prm.Durable,
+		prm.AutoDelete,
+		prm.Exclusive,
+		prm.NoWait,
+		prm.Args,
+	); err != nil {
+		return customapm.TraceError(
+			ctx,
+			customerror.NewFailedToError(
+				"declare queue",
+				customerror.WithError(err),
+			),
+			m.GetLogger(),
+			m.GetCounterSubscribedFailed(),
+		)
+	}
 
 	msgs, err := m.Client.Consume(
 		queueName,
@@ -281,11 +288,9 @@ func (m *RabbitMQ) Publish(ctx context.Context, queueName string, msg *queue.Mes
 		}
 	}
 
-	// In the context of RabbitMQ, the queue name was already defined when the
-	// `New` was called.
-	o.QueueName = m.amqpQueue.Name
-
-	queueName = o.QueueName
+	if o.QueueName != "" {
+		queueName = o.QueueName
+	}
 
 	//////
 	// Params handling.
@@ -303,6 +308,11 @@ func (m *RabbitMQ) Publish(ctx context.Context, queueName string, msg *queue.Mes
 		if err := o.PreHookFunc(ctx, m, queueName, msg); err != nil {
 			return customapm.TraceError(ctx, err, m.GetLogger(), m.GetCounterPublishedFailed())
 		}
+	}
+
+	// Register confirmation channel if provided and confirms are enabled
+	if m.Config.EnableConfirms && prm.Confirm && prm.ConfirmCh != nil {
+		m.Client.NotifyPublish(prm.ConfirmCh)
 	}
 
 	// Actually publish the data.
@@ -360,7 +370,7 @@ func (m *RabbitMQ) GetClient() any {
 //////
 
 // New creates a new RabbitMQ Queue.
-func New(ctx context.Context, url string, queueName string, cfg *Config) (*RabbitMQ, error) {
+func New(ctx context.Context, url string, cfg *Config) (*RabbitMQ, error) {
 	// Enforces IQueue interface implementation.
 	var _ queue.IQueue[PublishParams, SubscribeParams] = (*RabbitMQ)(nil)
 
@@ -375,10 +385,6 @@ func New(ctx context.Context, url string, queueName string, cfg *Config) (*Rabbi
 
 	if url == "" {
 		return nil, customerror.NewRequiredError("url")
-	}
-
-	if queueName == "" {
-		return nil, customerror.NewRequiredError("queueName")
 	}
 
 	if cfg == nil {
@@ -400,18 +406,6 @@ func New(ctx context.Context, url string, queueName string, cfg *Config) (*Rabbi
 		return nil, customerror.NewFailedToError("open channel", customerror.WithError(err))
 	}
 
-	q, err := ch.QueueDeclare(
-		queueName,
-		cfg.Durable,
-		cfg.AutoDelete,
-		cfg.Exclusive,
-		cfg.NoWait,
-		cfg.Args,
-	)
-	if err != nil {
-		return nil, customerror.NewFailedToError("connect to queue", customerror.WithError(err))
-	}
-
 	if err := ch.Qos(
 		cfg.PrefetchCount,
 		cfg.PrefetchSize,
@@ -431,8 +425,7 @@ func New(ctx context.Context, url string, queueName string, cfg *Config) (*Rabbi
 		Client: ch,
 		Config: cfg,
 
-		amqpQueue: q,
-		amqpConn:  conn,
+		amqpConn: conn,
 	}
 
 	//////

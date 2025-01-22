@@ -18,6 +18,7 @@ import (
 	"testing"
 	"time"
 
+	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/thalesfsp/queue/internal/shared"
 	"github.com/thalesfsp/queue/queue"
@@ -65,7 +66,14 @@ func TestNew(t *testing.T) {
 			ctx, cancel := context.WithTimeout(tt.args.ctx, shared.DefaultTimeout)
 			defer cancel()
 
-			q, err := New(ctx, host, queueName, nil)
+			//////
+			// Setup Queue.
+			//////
+
+			cfg := NewConfig()
+			cfg.EnableConfirms = true
+
+			q, err := New(ctx, host, cfg)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -108,15 +116,67 @@ func TestNew(t *testing.T) {
 			// Should be able to publish.
 			//////
 
-			assert.NoError(t, err)
+			//////
+			// Publish with Pre and Post hooks.
 
 			assert.NoError(t, q.Publish(ctx, queueName, queue.NewMustMessageFromStruct(&shared.TestDataS{
 				Name: "test1",
-			}), NewPublishParams()))
+			}), NewPublishParams(),
+				queue.WithPreHook(
+					func(_ context.Context, q queue.IQueue[PublishParams, SubscribeParams], queueName string, m *queue.Message) error {
+						assert.NotNil(t, q)
+						assert.NotNil(t, m)
+						assert.NotNil(t, m.Body)
+						assert.NotEmpty(t, queueName)
+						assert.NotEmpty(t, q.GetName())
+						assert.Contains(t, string(m.Body), "test")
+						return nil
+					},
+				),
+				queue.WithPostHook(
+					func(_ context.Context, q queue.IQueue[PublishParams, SubscribeParams], queueName string, m *queue.Message) error {
+						assert.NotNil(t, q)
+						assert.NotNil(t, m)
+						assert.NotNil(t, m.Body)
+						assert.NotEmpty(t, queueName)
+						assert.NotEmpty(t, q.GetName())
+						assert.Contains(t, string(m.Body), "test")
+						return nil
+					},
+				),
+			))
+
+			//////
+			// Publish with Confirmation.
+			//
+			// NOTE: For this to work, cfg.EnableConfirms = true must be set.
+
+			confirmCh := make(chan amqp.Confirmation, 1)
+
+			p2PRM := NewPublishParams()
+			p2PRM.Confirm = true        // Enable confirmation for this message.
+			p2PRM.ConfirmCh = confirmCh // Channel to receive the confirmation.
 
 			assert.NoError(t, q.Publish(ctx, queueName, queue.NewMustMessageFromStruct(&shared.TestDataS{
 				Name: "test2",
-			}), NewPublishParams()))
+			}), p2PRM))
+
+			// Listen for confirmations.
+			select {
+			case confirm := <-confirmCh:
+				assert.True(t, confirm.Ack)
+
+				// DeliveryTag is a 1-based counter of publishings from when the
+				// channel was put in Confirm mode
+				assert.Equal(t, uint64(1), confirm.DeliveryTag)
+			case <-ctx.Done():
+				t.Fatal("timeout waiting for confirmation", ctx.Err())
+
+				return
+			}
+
+			//////
+			// Just publish.
 
 			assert.NoError(t, q.Publish(ctx, queueName, queue.NewMustMessageFromStruct(&shared.TestDataS{
 				Name: "test3",

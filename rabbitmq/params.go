@@ -23,8 +23,14 @@ type SubscribeParams struct {
 	// delivery to the network.
 	AutoAck bool `default:"false" json:"autoAck"`
 
+	// AutoDelete deletes the queue when the last consumer unsubscribes.
+	AutoDelete bool `default:"false" json:"autoDelete"`
+
 	// Consumer is a unique string that identifies the consumer.
 	Consumer string `json:"consumer"`
+
+	// Durability ensures the queue survives a broker restart.
+	Durable bool `default:"true" json:"durable"`
 
 	// Exclusive ensures that this is the sole consumer from this queue.
 	Exclusive bool `default:"false" json:"exclusive"`
@@ -43,11 +49,13 @@ func NewSubscribeParams() *SubscribeParams {
 		SubscribeParams: queue.SubscribeParams{
 			ContextTimeout: 5 * time.Second,
 		},
-		AutoAck:   false,
-		Consumer:  "",
-		Exclusive: false,
-		NoLocal:   false,
-		NoWait:    false,
+		AutoAck:    false,
+		AutoDelete: false,
+		Consumer:   "",
+		Durable:    true,
+		Exclusive:  false,
+		NoLocal:    false,
+		NoWait:     false,
 	}
 }
 
@@ -57,6 +65,17 @@ type PublishParams struct {
 
 	// ContentType specifies the content type of the message.
 	ContentType string `default:"application/json" json:"contentType"`
+
+	// Confirm enables publisher confirmation mode for this message.
+	// Only works if publisher confirms are enabled at the channel level.
+	Confirm bool `default:"false" json:"confirm"`
+
+	// ConfirmCh is the channel where confirmation will be sent after publishing.
+	// This channel must be initialized by the caller if Confirm is true.
+	// The confirmation will contain:
+	// - Ack: true if message was confirmed, false if nacked
+	// - DeliveryTag: the sequence number of this delivery
+	ConfirmCh chan amqp.Confirmation `json:"-"`
 
 	// DeliveryMode. Transient means higher throughput but messages will not be
 	// restored on broker restart. The delivery mode of publishings is unrelated
@@ -84,6 +103,7 @@ type PublishParams struct {
 // NewPublishParams returns a default PublishParams.
 func NewPublishParams() *PublishParams {
 	return &PublishParams{
+		Confirm:      false,
 		ContentType:  "application/json",
 		DeliveryMode: 2,
 		Exchange:     "",
