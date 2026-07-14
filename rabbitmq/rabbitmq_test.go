@@ -39,7 +39,7 @@ func TestNew(t *testing.T) {
 		{
 			name: "Shoud work - E2E",
 			args: args{
-				ctx: context.Background(),
+				ctx: t.Context(),
 			},
 			want:    nil,
 			wantErr: false,

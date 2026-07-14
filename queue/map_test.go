@@ -37,7 +37,7 @@ func TestPublishToMany(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.Background()
+			ctx := t.Context()
 
 			m := make(Map)
 			m["m1"] = m1
@@ -66,7 +66,7 @@ func TestPublishMany(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.Background()
+			ctx := t.Context()
 
 			items := []*Message{
 				{Body: []byte("content1")},
