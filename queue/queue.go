@@ -8,8 +8,8 @@ import (
 	"github.com/thalesfsp/queue/internal/logging"
 	"github.com/thalesfsp/queue/internal/metrics"
 	"github.com/thalesfsp/status"
-	"github.com/thalesfsp/sypl"
-	"github.com/thalesfsp/sypl/level"
+	"github.com/thalesfsp/sypl/v2"
+	"github.com/thalesfsp/sypl/v2/level"
 	"github.com/thalesfsp/validation"
 )
 
