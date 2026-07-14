@@ -4,7 +4,7 @@ import (
 	"context"
 	"expvar"
 
-	"github.com/thalesfsp/sypl"
+	"github.com/thalesfsp/sypl/v2"
 )
 
 //////
