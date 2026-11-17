@@ -5,25 +5,17 @@ import (
 	"testing"
 )
 
-var m1 = &Mock{
-	MockPublish: func(ctx context.Context, queueName string, msg *Message, prm *PublishParams, options ...OptionsFunc) error {
-		return nil
-	},
-
-	MockGetName: func() string {
-		return "m1"
-	},
+func publishMock(name string) *Mock {
+	m := new(Mock)
+	m.MockPublish = func(context.Context, string, *Message, *PublishParams, ...OptionsFunc) error { return nil }
+	m.MockGetName = func() string { return name }
+	return m
 }
 
-var m2 = &Mock{
-	MockPublish: func(ctx context.Context, queueName string, msg *Message, prm *PublishParams, options ...OptionsFunc) error {
-		return nil
-	},
-
-	MockGetName: func() string {
-		return "m2"
-	},
-}
+var (
+	m1 = publishMock("m1")
+	m2 = publishMock("m2")
+)
 
 func TestPublishToMany(t *testing.T) {
 	tests := []struct {
@@ -43,7 +35,7 @@ func TestPublishToMany(t *testing.T) {
 			m["m1"] = m1
 			m["m2"] = m2
 
-			msg := &Message{Body: []byte("test")}
+			msg := NewMessage([]byte("test"))
 
 			err := PublishToMany(ctx, m, "test-queue", msg, nil)
 			if (err != nil) != tt.wantErr {
@@ -69,8 +61,8 @@ func TestPublishMany(t *testing.T) {
 			ctx := t.Context()
 
 			items := []*Message{
-				{Body: []byte("content1")},
-				{Body: []byte("content2")},
+				NewMessage([]byte("content1")),
+				NewMessage([]byte("content2")),
 			}
 
 			err := PublishMany(ctx, m1, "test-queue", items, nil)

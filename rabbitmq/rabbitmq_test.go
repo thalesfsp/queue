@@ -77,7 +77,8 @@ func TestNew(t *testing.T) {
 			// Buffer of 3 to avoid blocking the publisher.
 			messageReceived := make(chan struct{}, 3)
 
-			assert.NoError(t, q.Subscribe(ctx, queueName, func(_ context.Context, msg *queue.Message) error {
+			assert.NoError(t, q.Subscribe(ctx, queueName, func(callbackCtx context.Context, msg *queue.Message) error {
+				assert.NoError(t, callbackCtx.Err())
 				assert.NotNil(t, msg)
 
 				// This also works because the content of msg.Body is a JSON as
@@ -108,7 +109,8 @@ func TestNew(t *testing.T) {
 			// Publish with Pre and Post hooks.
 
 			assert.NoError(t, q.Publish(ctx, queueName, queue.NewMustMessageFromStruct(&shared.TestDataS{
-				Name: "test1",
+				Name:    "test1",
+				Version: "",
 			}), NewPublishParams(),
 				queue.WithPreHook(
 					func(_ context.Context, q queue.IQueue, queueName string, m *queue.Message) error {
@@ -150,7 +152,8 @@ func TestNew(t *testing.T) {
 			p2PRM.Any = dPP
 
 			assert.NoError(t, q.Publish(ctx, queueName, queue.NewMustMessageFromStruct(&shared.TestDataS{
-				Name: "test2",
+				Name:    "test2",
+				Version: "",
 			}), p2PRM))
 
 			// Listen for confirmations.
@@ -171,7 +174,8 @@ func TestNew(t *testing.T) {
 			// Just publish.
 
 			assert.NoError(t, q.Publish(ctx, queueName, queue.NewMustMessageFromStruct(&shared.TestDataS{
-				Name: "test3",
+				Name:    "test3",
+				Version: "",
 			}), NewPublishParams()))
 
 			//////

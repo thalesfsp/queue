@@ -129,7 +129,8 @@ func TestIsEnvironment(t *testing.T) {
 			args: args{
 				environments: []string{"production"},
 			},
-			env: "integration",
+			env:  "integration",
+			want: false,
 		},
 	}
 	for _, tt := range tests {

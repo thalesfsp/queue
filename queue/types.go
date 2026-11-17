@@ -41,7 +41,7 @@ type SubscribeParams struct {
 
 	// Metadata holds queue-specific attributes that don't fit into standard fields.
 	// Example: Message Attributes in SQS, Headers in RabbitMQ/Kafka, etc.
-	Metadata map[string]interface{}
+	Metadata map[string]any
 
 	// ContextTimeout specifies how long to wait for the callback to finish.
 	ContextTimeout time.Duration
@@ -74,7 +74,7 @@ type PublishParams struct {
 
 	// Metadata holds queue-specific attributes for publishing.
 	// Example: System Attributes in SQS, Headers in RabbitMQ/Kafka, etc.
-	Metadata map[string]interface{}
+	Metadata map[string]any
 }
 
 // Message represents a generic queue message
@@ -87,7 +87,7 @@ type Message struct {
 	MessageID string
 
 	// Metadata holds specific attributes that don't fit into standard fields.
-	Metadata map[string]interface{}
+	Metadata map[string]any
 
 	// Timestamp indicates when the message was published to the queue.
 	Timestamp time.Time
@@ -97,6 +97,7 @@ type Message struct {
 func NewMessage(body []byte) *Message {
 	return &Message{
 		Body:      body,
+		Metadata:  nil,
 		MessageID: shared.GenerateUUID(),
 		Timestamp: time.Now(),
 	}

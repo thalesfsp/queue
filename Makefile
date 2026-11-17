@@ -51,7 +51,7 @@ endif
 	@golangci-lint run -v -c .golangci.yml && echo "Lint OK"
 
 test:
-	@ENVIRONMENT="testing" configurer l d -f testing.env -- go test -timeout 30s -short -v -race -cover \
+	@ENVIRONMENT="testing" go test -timeout 30s -short -v -race -cover \
 	-coverprofile=coverage.out ./... && echo "Test OK"
 
 test-integration:
