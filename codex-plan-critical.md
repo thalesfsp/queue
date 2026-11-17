@@ -2,11 +2,11 @@
 
 This is the requested critical review and fix record. C-1 and C-2 are implemented in the local fix branch with hermetic unit regressions; publication awaits the parent review checkpoint. Original evidence below refers to the audited base SHA, before these fixes.
 
-Implementation: `TraceError` delegates span failure marking to APM's synchronized `CaptureError` API. Public `Subscribe` uses an in-memory-testable AMQP registration boundary and invokes an independently owned transaction/span for every delivery, preserving caller cancellation and non-tracing values. Callback timeouts resolve positive common → positive backend → five seconds; constructors expose the same default.
+Implementation: `TraceError` delegates span failure marking to APM's synchronized `CaptureError` API. Public `Subscribe` uses an in-memory-testable AMQP registration boundary and invokes an independently owned transaction/span for every delivery, preserving caller cancellation and non-tracing values. Callback timeouts resolve positive common → positive backend → five seconds; the helper leaves the common timeout unset so backend customizations take effect.
 
 Permanent regressions: `internal/customapm/error_test.go` and `rabbitmq/consumer_test.go`. They cover ended/concurrently ending spans, active failure outcomes, public post-return subscriptions, callback/Ack/Nack errors, inactive APM, ended caller/delivery spans, cancellation, timeout defaults and overrides. No real broker is used.
 
-Negative controls in the external evidence directory restore the original `TraceError` and constructor, the original outer-only timeout read, and inherited delivery tracing. Each fails for its actual defect; restored fixes pass under `-race`.
+Negative controls in the external evidence directory restore the original `TraceError`, the original outer-only timeout read, and inherited delivery tracing. Each fails for its actual defect; restored fixes pass under `-race`. An early constructor-only check incorrectly assumed the common field should duplicate the backend default; parent review refuted that representation, so that control is superseded and is not accepted regression evidence.
 
 Evidence and probe logs are in `/Volumes/Dev/Dev/critical-review-20261116/queue/`:
 
@@ -93,10 +93,10 @@ read from a different field (the generic outer params).
 
 **Implemented bounded fix:**
 
-- Resolve a positive common timeout first, then a positive backend timeout, then the five-second default. `NewSubscribeParams` also exposes the five-second common timeout. Public types are unchanged.
+- Resolve a positive common timeout first, then a positive backend timeout, then the five-second default. `NewSubscribeParams` keeps the common field at zero (unset); its backend supplies the five-second default. Backend edits made through this helper remain effective, while an explicitly positive common timeout takes precedence. Public types are unchanged.
 
 **Regression and negative controls:**
 
-- `TestNewSubscribeParamsTimeout` fails against the original constructor (expected 5s, actual 0s).
-- `TestSubscribeTimeoutWiring` exercises public `Subscribe` for nil/helper/empty params, common/backend overrides, precedence and negative values. Restoring the original outer-only timeout read fails with `context deadline exceeded`.
+- `TestNewSubscribeParamsTimeout` preserves zero-as-unset; the effective default is five seconds. The public-path regression covers helper defaults and helper-plus-backend edits.
+- `TestSubscribeTimeoutWiring` exercises public `Subscribe` for nil/helper/empty params, backend edits through the helper, explicit common overrides, precedence and negative values. Restoring the original outer-only timeout read fails with `context deadline exceeded`.
 - `TestSubscribeTimeout` covers resolution directly; default constructors retain all documented RabbitMQ flags. Three bypass groups (handler/ack errors with ended tracing, inactive APM/cancellation, negative and nested timeout overrides) pass without a broker.

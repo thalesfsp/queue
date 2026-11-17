@@ -202,7 +202,10 @@ func TestSubscribeDeliveryLifetime(t *testing.T) {
 
 func TestNewSubscribeParamsTimeout(t *testing.T) {
 	prm := NewSubscribeParams()
-	require.Equal(t, 5*time.Second, prm.ContextTimeout)
+	require.Zero(t, prm.ContextTimeout)
+	specific, ok := prm.Any.(*SubscribeParams)
+	require.True(t, ok)
+	require.Equal(t, 5*time.Second, subscribeTimeout(prm, specific))
 }
 
 func TestSubscribeTimeout(t *testing.T) {
@@ -234,15 +237,25 @@ func TestSubscribeTimeout(t *testing.T) {
 func TestSubscribeTimeoutWiring(t *testing.T) {
 	t.Setenv("ELASTIC_APM_ACTIVE", "true")
 	t.Setenv("ELASTIC_APM_TRANSACTION_SAMPLE_RATE", "1")
-	for _, scenario := range []string{"nil", "helper", "empty", "outer", "inner", "outer override", "negative"} {
+	for _, scenario := range []string{"nil", "helper", "helper inner edit", "helper outer override", "empty", "outer", "inner", "outer override", "negative"} {
 		t.Run(scenario, func(t *testing.T) {
 			q, client, tracer := newConsumer(t)
 			var prm *queue.SubscribeParams
 			want := 5 * time.Second
-			if scenario == "helper" {
+			if scenario == "helper" || scenario == "helper inner edit" || scenario == "helper outer override" {
 				prm = NewSubscribeParams()
+				if scenario != "helper" {
+					specific, ok := prm.Any.(*SubscribeParams)
+					require.True(t, ok)
+					specific.ContextTimeout = 2 * time.Second
+					want = 2 * time.Second
+				}
+				if scenario == "helper outer override" {
+					prm.ContextTimeout = 4 * time.Second
+					want = 4 * time.Second
+				}
 			}
-			if scenario != "nil" && scenario != "helper" {
+			if scenario != "nil" && prm == nil {
 				prm = new(queue.SubscribeParams)
 				specific := new(SubscribeParams)
 				prm.Any = specific

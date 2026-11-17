@@ -69,11 +69,11 @@ func NewDefaultSubscribeParams() *SubscribeParams {
 }
 
 // NewSubscribeParams return a common SubscribeParams with the `Any` field
-// already set to the specific implementation default parameters.
+// already set to the specific implementation default parameters. The common
+// timeout stays unset so backend timeout customizations take effect.
 func NewSubscribeParams() *queue.SubscribeParams {
 	prm := new(queue.SubscribeParams)
 	prm.Any = NewDefaultSubscribeParams()
-	prm.ContextTimeout = defaultContextTimeout
 
 	return prm
 }

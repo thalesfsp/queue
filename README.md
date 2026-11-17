@@ -36,4 +36,4 @@ Requires Go 1.26.11 or newer. Development and CI use Go 1.27.4 and golangci-lint
 
 Each delivery owns its APM transaction and span; handler and acknowledgement errors are recorded before that tracing lifetime ends. Caller cancellation and context values remain available to the handler.
 
-The callback timeout defaults to five seconds. A positive `queue.SubscribeParams.ContextTimeout` takes precedence over a positive backend `rabbitmq.SubscribeParams.ContextTimeout`; zero or negative values fall back to the backend timeout or the five-second default.
+The callback timeout defaults to five seconds. A positive `queue.SubscribeParams.ContextTimeout` takes precedence over a positive backend `rabbitmq.SubscribeParams.ContextTimeout`; zero or negative values fall back to the backend timeout or the five-second default. `NewSubscribeParams()` leaves the common timeout unset, so editing its backend parameters takes effect unless you explicitly set a positive common timeout.
