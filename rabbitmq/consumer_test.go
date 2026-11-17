@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -327,4 +328,46 @@ func TestSubscribeParamsDefaults(t *testing.T) {
 	require.Empty(t, specific.Consumer)
 	require.Nil(t, specific.Args)
 	require.Equal(t, specific, NewSubscribeParams().Any)
+}
+
+func TestValidateRequiredReferences(t *testing.T) {
+	for _, missing := range []string{"none", "queue", "client", "config"} {
+		t.Run(missing, func(t *testing.T) {
+			q, _, _ := newConsumer(t)
+			q.Client = new(amqp.Channel)
+			q.Config = NewConfig()
+			switch missing {
+			case "queue":
+				q.Queue = nil
+			case "client":
+				q.Client = nil
+			case "config":
+				q.Config = nil
+			}
+			if missing == "none" {
+				require.NoError(t, q.validate())
+			} else {
+				require.Error(t, q.validate())
+			}
+		})
+	}
+}
+
+func TestValidateLiveClient(t *testing.T) {
+	q, _, _ := newConsumer(t)
+	q.Client = new(amqp.Channel)
+	q.Config = NewConfig()
+	start := make(chan struct{})
+	var workers sync.WaitGroup
+	workers.Go(func() {
+		<-start
+		for range 10000 {
+			q.Client.NotifyClose(make(chan *amqp.Error))
+		}
+	})
+	close(start)
+	for range 10000 {
+		require.NoError(t, q.validate())
+	}
+	workers.Wait()
 }

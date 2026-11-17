@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Validate required AMQP references without reflecting over concurrently active channel internals.
+
 - Give each RabbitMQ delivery its own tracing lifetime and safely capture errors on ended spans, including concurrent span completion.
 - Apply the five-second subscription callback default consistently, with positive common/backend timeout overrides.
 

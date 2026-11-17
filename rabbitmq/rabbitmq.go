@@ -72,6 +72,20 @@ type RabbitMQ struct {
 // Helpers.
 //////
 
+// validate checks required references without reflecting over live AMQP state.
+// The embedded queue's fields were already validated by queue.New.
+func (m *RabbitMQ) validate() error {
+	return validation.Validate(struct {
+		Queue  bool `validate:"eq=true"`
+		Client bool `validate:"eq=true"`
+		Config bool `validate:"eq=true"`
+	}{
+		Queue:  m.Queue != nil,
+		Client: m.Client != nil,
+		Config: m.Config != nil,
+	})
+}
+
 // handleDelivery owns its tracing lifetime independently of Subscribe and its caller.
 func (m *RabbitMQ) handleDelivery(ctx context.Context, d amqp.Delivery, cb queue.CallbackFunc, timeout time.Duration) {
 	tx := apm.DefaultTracer.StartTransaction(Name, queue.Type)
@@ -491,7 +505,7 @@ func New(ctx context.Context, url string, cfg *Config) (*RabbitMQ, error) {
 	// Queue validation.
 	//////
 
-	if err := validation.Validate(queue); err != nil {
+	if err := queue.validate(); err != nil {
 		return nil, err
 	}
 

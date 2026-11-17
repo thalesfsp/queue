@@ -8,6 +8,8 @@ Permanent regressions: `internal/customapm/error_test.go` and `rabbitmq/consumer
 
 Negative controls in the external evidence directory restore the original `TraceError`, the original outer-only timeout read, and inherited delivery tracing. Each fails for its actual defect; restored fixes pass under `-race`. An early constructor-only check incorrectly assumed the common field should duplicate the backend default; parent review refuted that representation, so that control is superseded and is not accepted regression evidence.
 
+Hosted integration follow-up: validator v10.30.6 copies a live `amqp.Channel` while probing its `Valuer` interface, racing the connection reader. Factory validation now checks a snapshot of required Queue/Client/Config reference presence; `queue.New` has already validated the embedded queue fields. Required-reference tests preserve nil rejection, and `TestValidateLiveClient` races harmless in-memory notification registration against validation without a broker. Restoring whole-object reflection reproduces `WARNING: DATA RACE`. No validation policy, race detector or hosted integration gate is disabled.
+
 Evidence and probe logs are in `/Volumes/Dev/Dev/critical-review-20261116/queue/`:
 
 - `probe-repo/probe/critical_probe_test.go` is the probe source.
