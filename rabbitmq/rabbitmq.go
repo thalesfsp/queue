@@ -3,6 +3,7 @@ package rabbitmq
 import (
 	"context"
 	"fmt"
+	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/thalesfsp/customerror"
@@ -14,6 +15,7 @@ import (
 	"github.com/thalesfsp/sypl/v2/fields"
 	"github.com/thalesfsp/sypl/v2/level"
 	"github.com/thalesfsp/validation"
+	"go.elastic.co/apm"
 )
 
 //////
@@ -22,6 +24,12 @@ import (
 
 // Name of the queue.
 const Name = "rabbitmq"
+
+// subscriptionClient is the AMQP surface used to register a consumer.
+type subscriptionClient interface {
+	QueueDeclare(name string, durable, autoDelete, exclusive, noWait bool, args amqp.Table) (amqp.Queue, error)
+	Consume(queue, consumer string, autoAck, exclusive, noLocal, noWait bool, args amqp.Table) (<-chan amqp.Delivery, error)
+}
 
 // Singleton.
 var singleton queue.IQueue
@@ -55,11 +63,53 @@ type RabbitMQ struct {
 	Config *Config `json:"-" validate:"required"`
 
 	amqpConn *amqp.Connection
+
+	// A nil subscriber uses Client. Tests supply a hermetic AMQP implementation.
+	subscriber subscriptionClient
 }
 
 //////
 // Helpers.
 //////
+
+// handleDelivery owns its tracing lifetime independently of Subscribe and its caller.
+func (m *RabbitMQ) handleDelivery(ctx context.Context, d amqp.Delivery, cb queue.CallbackFunc, timeout time.Duration) {
+	tx := apm.DefaultTracer.StartTransaction(Name, queue.Type)
+	defer tx.End()
+
+	// Replace inherited tracing values without detaching cancellation or other values.
+	ctx = apm.ContextWithSpan(apm.ContextWithTransaction(ctx, tx), nil)
+	ctx, span := customapm.Trace(ctx, m.GetType(), Name, status.Received.String())
+	defer span.End()
+
+	ctxTimeout, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	var message queue.Message
+	message.Body = d.Body
+
+	if err := cb(ctxTimeout, &message); err != nil {
+		if nackErr := d.Nack(false, true); nackErr != nil {
+			_ = customapm.TraceError(ctx,
+				customerror.NewFailedToError(queue.OperationReceived.String(), customerror.WithError(nackErr)),
+				m.GetLogger(), m.GetCounterReceivedFailed())
+		}
+
+		_ = customapm.TraceError(ctx,
+			customerror.NewFailedToError(queue.OperationReceived.String(), customerror.WithError(err)),
+			m.GetLogger(), m.GetCounterReceivedFailed())
+
+		return
+	}
+
+	m.GetCounterReceived().Add(1)
+
+	if err := d.Ack(false); err != nil {
+		_ = customapm.TraceError(ctx,
+			customerror.NewFailedToError(queue.OperationReceived.String(), customerror.WithError(err)),
+			m.GetLogger(), m.GetCounterReceivedFailed())
+	}
+}
 
 //////
 // Implements the IQueue interface.
@@ -95,6 +145,8 @@ func (m *RabbitMQ) Subscribe(ctx context.Context, queueName string, cb queue.Cal
 	// APM Tracing.
 	//////
 
+	consumerCtx := ctx
+
 	ctx, span := customapm.Trace(
 		ctx,
 		m.GetType(),
@@ -129,9 +181,7 @@ func (m *RabbitMQ) Subscribe(ctx context.Context, queueName string, cb queue.Cal
 
 	// Handle cases where prm is not set.
 	if prm == nil {
-		prm = &queue.SubscribeParams{
-			Any: NewDefaultSubscribeParams(),
-		}
+		prm = NewSubscribeParams()
 	}
 
 	// Handle cases where Any isn't set.
@@ -156,7 +206,12 @@ func (m *RabbitMQ) Subscribe(ctx context.Context, queueName string, cb queue.Cal
 	// Subscribing.
 	//////
 
-	if _, err := m.Client.QueueDeclare(
+	client := m.subscriber
+	if client == nil {
+		client = m.Client
+	}
+
+	if _, err := client.QueueDeclare(
 		queueName,
 		castedParams.Durable,
 		castedParams.AutoDelete,
@@ -175,7 +230,7 @@ func (m *RabbitMQ) Subscribe(ctx context.Context, queueName string, cb queue.Cal
 		)
 	}
 
-	msgs, err := m.Client.Consume(
+	msgs, err := client.Consume(
 		queueName,
 		castedParams.Consumer,
 		castedParams.AutoAck,
@@ -193,53 +248,11 @@ func (m *RabbitMQ) Subscribe(ctx context.Context, queueName string, cb queue.Cal
 		)
 	}
 
+	timeout := subscribeTimeout(prm, castedParams)
+
 	go func() {
 		for d := range msgs {
-			ctxTimeout, cancel := context.WithTimeout(ctx, prm.ContextTimeout)
-
-			if err := cb(ctxTimeout, &queue.Message{
-				Body: d.Body,
-			}); err != nil {
-				cancel()
-
-				// Doesn't acknowledge the message.
-				if err := d.Nack(false, true); err != nil {
-					// Observability.
-					_ = customapm.TraceError(
-						ctx,
-						customerror.NewFailedToError(queue.OperationReceived.String(), customerror.WithError(err)),
-						m.GetLogger(),
-						m.GetCounterReceivedFailed(),
-					)
-				}
-
-				// Observability.
-				_ = customapm.TraceError(
-					ctx,
-					customerror.NewFailedToError(queue.OperationReceived.String(), customerror.WithError(err)),
-					m.GetLogger(),
-					m.GetCounterReceivedFailed(),
-				)
-
-				// Do nothing, just continue to the next message.
-				continue
-			}
-
-			// Observability.
-			m.GetCounterReceived().Add(1)
-
-			// Acknowledges the message.
-			if err := d.Ack(false); err != nil {
-				// Observability.
-				_ = customapm.TraceError(
-					ctx,
-					customerror.NewFailedToError(queue.OperationReceived.String(), customerror.WithError(err)),
-					m.GetLogger(),
-					m.GetCounterReceivedFailed(),
-				)
-			}
-
-			cancel()
+			m.handleDelivery(consumerCtx, d, cb, timeout)
 		}
 	}()
 
@@ -323,9 +336,7 @@ func (m *RabbitMQ) Publish(ctx context.Context, queueName string, msg *queue.Mes
 
 	// Handle cases where prm is not set.
 	if prm == nil {
-		prm = &queue.PublishParams{
-			Any: NewDefaultPublishParams(),
-		}
+		prm = NewPublishParams()
 	}
 
 	// Handle cases where Any isn't set.
@@ -362,16 +373,17 @@ func (m *RabbitMQ) Publish(ctx context.Context, queueName string, msg *queue.Mes
 	}
 
 	// Actually publish the data.
+	var publishing amqp.Publishing
+	publishing.DeliveryMode = castedParams.DeliveryMode
+	publishing.ContentType = castedParams.ContentType
+	publishing.Body = msg.Body
+
 	if err := m.Client.PublishWithContext(ctx,
 		castedParams.Exchange,
 		queueName,
 		castedParams.Mandatory,
 		castedParams.Immediate,
-		amqp.Publishing{
-			DeliveryMode: castedParams.DeliveryMode,
-			ContentType:  castedParams.ContentType,
-			Body:         msg.Body,
-		}); err != nil {
+		publishing); err != nil {
 		return customapm.TraceError(
 			ctx,
 			customerror.NewFailedToError(queue.OperationPublished.String(), customerror.WithError(err)),
@@ -471,7 +483,8 @@ func New(ctx context.Context, url string, cfg *Config) (*RabbitMQ, error) {
 		Client: ch,
 		Config: cfg,
 
-		amqpConn: conn,
+		amqpConn:   conn,
+		subscriber: nil,
 	}
 
 	//////

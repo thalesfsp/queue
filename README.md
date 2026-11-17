@@ -19,6 +19,8 @@ This package implements a generic queue interface that abstracts away the comple
 
 ## Install
 
+Requires Go 1.26.11 or newer. Development and CI use Go 1.27.4 and golangci-lint 2.15.0, pinned in `mise.toml`.
+
 `go get github.com/thalesfsp/queue`
 
 ## Contributing
@@ -29,3 +31,9 @@ This package implements a generic queue interface that abstracts away the comple
 4. Make changes following the same standards as the project
 5. Run `make ci`
 6. Create a merge request
+
+## RabbitMQ subscriptions
+
+Each delivery owns its APM transaction and span; handler and acknowledgement errors are recorded before that tracing lifetime ends. Caller cancellation and context values remain available to the handler.
+
+The callback timeout defaults to five seconds. A positive `queue.SubscribeParams.ContextTimeout` takes precedence over a positive backend `rabbitmq.SubscribeParams.ContextTimeout`; zero or negative values fall back to the backend timeout or the five-second default.

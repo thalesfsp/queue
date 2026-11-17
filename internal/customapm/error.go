@@ -36,8 +36,8 @@ func (o Outcome) String() string {
 //////
 
 // TraceError is a helper function to trace an error. It will log the error
-// with the APM fields, and tell APM that it was an error. It will also set
-// the span outcome to failure.
+// with the APM fields, and tell APM that it was an error. APM records the
+// default failure outcome using its synchronized error capture API.
 func TraceError(
 	ctx context.Context,
 	err error,
@@ -55,12 +55,6 @@ func TraceError(
 	//////
 	// APM.
 	//////
-
-	// Get the current span from the context, if any, set the outcome.
-	span := apm.SpanFromContext(ctx)
-	if span != nil {
-		span.Outcome = string(Failure)
-	}
 
 	originalError := err
 

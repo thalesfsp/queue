@@ -81,7 +81,7 @@ func WithQueueName(queueName string) OptionsFunc {
 
 // NewOptions creates Options.
 func NewOptions() (*Options, error) {
-	o := &Options{}
+	o := new(Options)
 
 	if err := validation.Validate(o); err != nil {
 		return nil, err

@@ -7,6 +7,21 @@ import (
 	"github.com/thalesfsp/queue/queue"
 )
 
+const defaultContextTimeout = 5 * time.Second
+
+// subscribeTimeout prefers an explicit common timeout, then the backend timeout.
+func subscribeTimeout(prm *queue.SubscribeParams, specific *SubscribeParams) time.Duration {
+	if prm != nil && prm.ContextTimeout > 0 {
+		return prm.ContextTimeout
+	}
+
+	if specific != nil && specific.ContextTimeout > 0 {
+		return specific.ContextTimeout
+	}
+
+	return defaultContextTimeout
+}
+
 //////
 // Const, vars, and types.
 //////
@@ -46,26 +61,21 @@ type SubscribeParams struct {
 
 // NewDefaultSubscribeParams creates a new SubscribeParams.
 func NewDefaultSubscribeParams() *SubscribeParams {
-	return &SubscribeParams{
-		SubscribeParams: queue.SubscribeParams{
-			ContextTimeout: 5 * time.Second,
-		},
-		AutoAck:    false,
-		AutoDelete: false,
-		Consumer:   "",
-		Durable:    true,
-		Exclusive:  false,
-		NoLocal:    false,
-		NoWait:     false,
-	}
+	prm := new(SubscribeParams)
+	prm.ContextTimeout = defaultContextTimeout
+	prm.Durable = true
+
+	return prm
 }
 
 // NewSubscribeParams return a common SubscribeParams with the `Any` field
 // already set to the specific implementation default parameters.
 func NewSubscribeParams() *queue.SubscribeParams {
-	return &queue.SubscribeParams{
-		Any: NewDefaultSubscribeParams(),
-	}
+	prm := new(queue.SubscribeParams)
+	prm.Any = NewDefaultSubscribeParams()
+	prm.ContextTimeout = defaultContextTimeout
+
+	return prm
 }
 
 // PublishParams defines the parameters for publishing a message to a queue.
@@ -111,20 +121,18 @@ type PublishParams struct {
 
 // NewDefaultPublishParams returns a default PublishParams.
 func NewDefaultPublishParams() *PublishParams {
-	return &PublishParams{
-		Confirm:      false,
-		ContentType:  "application/json",
-		DeliveryMode: 2,
-		Exchange:     "",
-		Immediate:    false,
-		Mandatory:    false,
-	}
+	prm := new(PublishParams)
+	prm.ContentType = "application/json"
+	prm.DeliveryMode = 2
+
+	return prm
 }
 
 // NewPublishParams return a common PublishParams with the `Any` field already
 // set to the specific implementation default parameters.
 func NewPublishParams() *queue.PublishParams {
-	return &queue.PublishParams{
-		Any: NewDefaultPublishParams(),
-	}
+	prm := new(queue.PublishParams)
+	prm.Any = NewDefaultPublishParams()
+
+	return prm
 }
